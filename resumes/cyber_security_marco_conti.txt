@@ -1,0 +1,175 @@
+### Informazioni Personali
+
+Nome: Marco Conti
+
+Ruolo: Cyber Security Specialist
+
+Email: marco.conti@email.com
+
+Telefono: +39 333 1234567
+
+Città: Roma
+
+### Profilo
+
+Cyber Security Specialist con oltre 6 anni di esperienza nella protezione delle infrastrutture IT, nella gestione degli incidenti di sicurezza, nell'analisi delle vulnerabilità e nella progettazione di sistemi di difesa informatica. Esperienza nella protezione di reti aziendali, sistemi cloud e ambienti Windows e Linux.
+
+### Competenze
+
+Cyber Security
+
+Network Security
+
+Endpoint Security
+
+Identity and Access Management (IAM)
+
+Incident Response
+
+Threat Intelligence
+
+Vulnerability Assessment
+
+Penetration Testing
+
+Digital Forensics
+
+Malware Analysis
+
+Firewall
+
+VPN
+
+Active Directory
+
+Microsoft Defender
+
+CrowdStrike
+
+Splunk
+
+Wireshark
+
+Nmap
+
+Nessus
+
+OpenVAS
+
+Burp Suite
+
+Metasploit
+
+Python
+
+PowerShell
+
+Bash
+
+Linux
+
+Windows Server
+
+Azure Security
+
+AWS IAM
+
+Microsoft Entra ID
+
+Zero Trust Architecture
+
+Security Operations Center (SOC)
+
+Security Information and Event Management (SIEM)
+
+### Esperienza Professionale
+
+Cyber Security Specialist
+
+SecureTech S.r.l.
+
+2022 - Presente
+
+Gestione degli incidenti di sicurezza.
+
+Monitoraggio continuo tramite Splunk.
+
+Analisi delle vulnerabilità.
+
+Hardening dei server Windows e Linux.
+
+Implementazione di firewall aziendali.
+
+Configurazione di Microsoft Defender.
+
+Collaborazione con il team DevOps per migliorare la sicurezza delle applicazioni.
+
+Redazione di report di sicurezza.
+
+### Esperienza Professionale
+
+Cyber Security Analyst
+
+NetDefense Italia
+
+2019 - 2022
+
+Scansioni periodiche delle vulnerabilità.
+
+Penetration test interni.
+
+Monitoraggio dei log di sicurezza.
+
+Configurazione VPN.
+
+Gestione Active Directory.
+
+Supporto agli audit ISO 27001.
+
+### Formazione
+
+Laurea Triennale in Informatica
+
+Università La Sapienza di Roma
+
+### Certificazioni
+
+CompTIA Security+
+
+Cisco CyberOps Associate
+
+Microsoft SC-900
+
+Microsoft AZ-500
+
+Certified Ethical Hacker (CEH)
+
+### Lingue
+
+Italiano
+
+Inglese B2
+
+### Soft Skills
+
+Problem Solving
+
+Capacità di analisi
+
+Team Working
+
+Gestione dello stress
+
+Comunicazione efficace
+
+Precisione
+
+### Progetti
+
+Implementazione di un SIEM basato su Splunk per il monitoraggio di oltre 500 endpoint.
+
+Progettazione di un sistema Zero Trust per una media impresa.
+
+Riduzione del 45% delle vulnerabilità critiche tramite attività di Vulnerability Assessment e Patch Management.
+
+Automazione di controlli di sicurezza tramite script Python.

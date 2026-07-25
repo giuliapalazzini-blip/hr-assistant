@@ -1,99 +1,22 @@
-import os
-from pathlib import Path
-
 import chainlit as cl
-import chromadb
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-from dotenv import load_dotenv
-from openai import OpenAI
 
-load_dotenv()
-
-api_key = os.getenv("OPENAI_API_KEY")
-
-if not api_key:
-    raise ValueError(
-        "La variabile OPENAI_API_KEY non è stata trovata nel file .env"
-    )
-
-openai_client = OpenAI(api_key=api_key)
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-RESUMES_DIR = BASE_DIR / "resumes"
-CHROMA_DIR = BASE_DIR / "chroma_db"
+from config import Config
+from database import Database
+from document_processor import DocumentProcessor
+from utils import LLMHelper
 
 
-def leggi_curriculum():
-    curriculum = []
+db = Database()
 
-    if not RESUMES_DIR.exists():
-        print("La cartella resumes non esiste.")
-        return curriculum
+added, updated, removed = DocumentProcessor.process_documents(db)
 
-    for file_path in RESUMES_DIR.glob("*.txt"):
-        contenuto = file_path.read_text(encoding="utf-8")
-
-        curriculum.append(
-            {
-                "nome_file": file_path.name,
-                "contenuto": contenuto,
-            }
-        )
-
-    return curriculum
-
-embedding_function = OpenAIEmbeddingFunction(
-    api_key=api_key,
-    model_name="text-embedding-3-small",
-)
-
-chroma_client = chromadb.PersistentClient(
-    path=str(CHROMA_DIR)
-)
-
-collection = chroma_client.get_or_create_collection(
-    name="curriculum",
-    embedding_function=embedding_function,
-)
-
-
-def salva_curriculum_in_chroma(curriculum):
-    for cv in curriculum:
-        collection.upsert(
-            ids=[cv["nome_file"]],
-            documents=[cv["contenuto"]],
-            metadatas=[
-                {
-                    "nome_file": cv["nome_file"],
-                }
-            ],
-        )
+print(f"Documenti aggiunti: {added}")
+print(f"Documenti aggiornati: {updated}")
+print(f"Documenti eliminati: {removed}")
 
 
 @cl.on_chat_start
 async def on_chat_start():
-    curriculum = leggi_curriculum()
-
-    salva_curriculum_in_chroma(curriculum)
-
-    print(f"Curriculum letti: {len(curriculum)}")
-    print(f"Curriculum presenti in ChromaDB: {collection.count()}")
-
-    await cl.Message(
-        content=(
-            "👋 Ciao! Sono il tuo HR Assistant.\n\n"
-            f"Ho caricato {collection.count()} curriculum.\n\n"
-            "Puoi chiedermi, per esempio:\n"
-            "“Quale candidato conosce Python?”"
-        )
-    ).send()
-
-
-@cl.on_chat_start
-async def on_chat_start():
-    curriculum = leggi_curriculum()
-    salva_curriculum_in_chroma(curriculum)
-
     cl.user_session.set(
         "messages",
         [
@@ -109,13 +32,12 @@ async def on_chat_start():
         ],
     )
 
-    print(f"Curriculum letti: {len(curriculum)}")
-    print(f"Curriculum presenti in ChromaDB: {collection.count()}")
-
     await cl.Message(
         content=(
             "Ciao! Sono il tuo HR Assistant.\n\n"
-            f"Ho caricato {collection.count()} curriculum."
+            f"Documenti aggiunti: {added}\n"
+            f"Documenti aggiornati: {updated}\n"
+            f"Documenti eliminati: {removed}"
         )
     ).send()
 
@@ -123,80 +45,72 @@ async def on_chat_start():
 @cl.on_message
 async def on_message(message: cl.Message):
     try:
-        numero_curriculum = collection.count()
+        results = db.query(
+            query_text=message.content,
+            n_results=1,
+        )
 
-        if numero_curriculum == 0:
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+
+        if not documents:
             await cl.Message(
-                content="Non ci sono curriculum disponibili."
+                content="Non ho trovato curriculum adatti alla richiesta."
             ).send()
             return
 
-        risultati = collection.query(
-            query_texts=[message.content],
-            n_results=numero_curriculum,
+        context = documents[0]
+
+        source = "file sconosciuto"
+
+        if metadatas and metadatas[0]:
+            source = metadatas[0].get("source", source)
+
+        candidate_name = await LLMHelper.get_candidate_name(context)
+
+        prompt = LLMHelper.create_prompt(
+            context=context,
+            question=message.content,
+            candidate_name=candidate_name,
         )
-
-        documenti = risultati.get("documents", [[]])[0]
-        metadati = risultati.get("metadatas", [[]])[0]
-
-        curriculum_per_prompt = []
-
-        for indice, documento in enumerate(documenti):
-            nome_file = "Curriculum sconosciuto"
-
-            if indice < len(metadati) and metadati[indice]:
-                nome_file = metadati[indice].get(
-                    "nome_file",
-                    nome_file,
-                )
-
-            curriculum_per_prompt.append(
-                f"""
-CANDIDATO {indice + 1}
-File: {nome_file}
-
-{documento}
-"""
-            )
-
-        testo_curriculum = "\n".join(curriculum_per_prompt)
-
-        prompt = f"""
-Domanda dell'utente:
-{message.content}
-
-CURRICULUM DISPONIBILI:
-{testo_curriculum}
-"""
 
         messages = cl.user_session.get("messages", [])
 
         messages.append(
             {
                 "role": "user",
-                "content": prompt,
+                "content": (
+                    f"Nome del file individuato: {source}\n\n"
+                    f"{prompt}"
+                ),
             }
         )
 
-        response = openai_client.responses.create(
-            model="gpt-4.1-mini",
-            input=messages,
-        )
+        response = LLMHelper.chat(messages)
 
-        risposta = response.output_text
+        answer = cl.Message(content="")
+
+        await answer.send()
+
+        complete_response = ""
+
+        for chunk in response:
+            content = chunk.choices[0].delta.content
+
+            if content:
+                complete_response += content
+                await answer.stream_token(content)
+
+        await answer.update()
 
         messages.append(
             {
                 "role": "assistant",
-                "content": risposta,
+                "content": complete_response,
             }
         )
 
         cl.user_session.set("messages", messages)
-
-        await cl.Message(
-            content=risposta
-        ).send()
 
     except Exception as error:
         print(f"Errore: {error}")

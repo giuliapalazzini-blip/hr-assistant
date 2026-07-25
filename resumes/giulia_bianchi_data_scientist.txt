@@ -1,0 +1,123 @@
+### Informazioni Personali
+
+Nome: Giulia Bianchi
+
+Ruolo: Data Scientist
+
+Email: giulia.bianchi@email.com
+
+Telefono: +39 333 9876543
+
+Città: Milano
+
+### Profilo
+
+Data Scientist con 5 anni di esperienza nell'analisi dei dati, nello sviluppo di modelli di Machine Learning e nella creazione di dashboard per il supporto alle decisioni aziendali. Esperienza con Python, SQL e strumenti di Business Intelligence.
+
+### Competenze
+
+Python
+
+Pandas
+
+NumPy
+
+Scikit-learn
+
+TensorFlow
+
+Machine Learning
+
+Deep Learning
+
+Data Analysis
+
+Data Visualization
+
+Power BI
+
+Tableau
+
+SQL
+
+PostgreSQL
+
+MySQL
+
+Statistics
+
+Predictive Analytics
+
+Feature Engineering
+
+Git
+
+Docker
+
+AWS
+
+### Esperienza Professionale
+
+Data Scientist
+
+DataLab S.r.l.
+
+2022 - Presente
+
+Sviluppo di modelli di Machine Learning.
+
+Analisi di grandi volumi di dati.
+
+Creazione di dashboard con Power BI.
+
+Automazione di processi di analisi tramite Python.
+
+Collaborazione con team di sviluppo e business.
+
+### Esperienza Professionale
+
+Data Analyst
+
+Analytics Solutions
+
+2020 - 2022
+
+Realizzazione di reportistica aziendale.
+
+Analisi KPI.
+
+Pulizia e preparazione dei dati.
+
+Scrittura di query SQL.
+
+### Formazione
+
+Laurea Magistrale in Data Science
+
+Università degli Studi di Milano
+
+### Certificazioni
+
+Microsoft Power BI Data Analyst
+
+AWS Certified Cloud Practitioner
+
+TensorFlow Developer Certificate
+
+### Lingue
+
+Italiano
+
+Inglese C1
+
+### Soft Skills
+
+Problem Solving
+
+Team Working
+
+Comunicazione
+
+Pensiero Analitico
+
+Precisione
