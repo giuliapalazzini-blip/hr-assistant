@@ -1,15 +1,12 @@
-from config import Config
 from openai import OpenAI
+from config import Config
 
 
 client = OpenAI(
     base_url=Config.AI_API_URL,
     api_key=Config.AI_API_KEY,
 )
-
-
 class LLMHelper:
-
     @staticmethod
     def chat(messages):
         return client.chat.completions.create(
@@ -17,7 +14,6 @@ class LLMHelper:
             messages=messages,
             stream=True,
         )
-
     @staticmethod
     async def get_candidate_name(context):
         response = client.chat.completions.create(
@@ -25,14 +21,13 @@ class LLMHelper:
             messages=[
                 {
                     "role": "user",
-                    "content": f"""
-Dato il seguente contesto, individua il nome e il cognome del candidato
-e restituisci soltanto il nome e il cognome.
-
-Il testo che sto per fornirti è il curriculum vitae del candidato:
-
-{context}
-""",
+                    "content": (
+                        "Dato il seguente curriculum, individua "
+                        "il nome e il cognome del candidato. "
+                        "Restituisci esclusivamente il nome e "
+                        "il cognome.\n\n"
+                        f"Curriculum:\n{context}"
+                    ),
                 }
             ],
         )
@@ -40,7 +35,26 @@ Il testo che sto per fornirti è il curriculum vitae del candidato:
         return response.choices[0].message.content
 
     @staticmethod
-    def create_prompt(context, question, candidate_name):
+    async def get_db_stats(context):
+        response = client.chat.completions.create(
+            model=Config.LLM_MODEL_LOW,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Descrivi in modo sintetico e chiaro "
+                        "le statistiche del database dei curriculum. "
+                        "Utilizza esclusivamente i dati seguenti:\n\n"
+                        f"{context}"
+                    ),
+                }
+            ],
+        )
+
+        return response.choices[0].message.content
+
+    @staticmethod
+    def create_prompt(context, question):
         return f"""
 Dato il seguente contesto:
 
@@ -54,13 +68,16 @@ Rispondi alla domanda dell'utente:
 {question}
 ]]]
 
-Spiega che nel file individuato è presente il profilo più adatto.
-Assicurati di nominare il file.
-Assicurati di indicare il nome del candidato:
+Indica quale candidato risulta più adatto.
 
-[[[
-{candidate_name}
-]]]
+Argomenta la scelta utilizzando esclusivamente le informazioni
+presenti nel contesto.
 
-Argomenta la scelta utilizzando il contenuto del testo individuato nel contesto.
+Alla fine crea una sezione "Contatti del candidato" indicando:
+- nome e cognome;
+- email;
+- numero di telefono.
+
+Dopo la sezione dei contatti indica il nome del file del curriculum.
+Non nominare il file prima di questa sezione.
 """

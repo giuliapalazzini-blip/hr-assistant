@@ -1,30 +1,36 @@
+import hashlib
 import os
 import uuid
-import hashlib
+
 from config import Config
-
-
 class DocumentProcessor:
-
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
         with open(file_path, "r", encoding="utf-8") as file:
-            return [line.strip() for line, _ in zip(file, range(n_lines))]
+            return [
+                line.strip()
+                for line, _ in zip(file, range(n_lines))
+            ]
 
     @staticmethod
     def get_file_hash(file_path):
-        """Calculate MD5 hash of file content"""
+        """Calcola l'hash MD5 del contenuto del file."""
+
         hash_md5 = hashlib.md5()
 
         with open(file_path, "rb") as file:
-            for chunk in iter(lambda: file.read(4096), b""):
+            for chunk in iter(
+                lambda: file.read(4096),
+                b"",
+            ):
                 hash_md5.update(chunk)
 
         return hash_md5.hexdigest()
 
     @staticmethod
     def get_document_metadata(file_path):
-        """Get document metadata including hash and last modified time"""
+        """Restituisce hash, ultima modifica e nome del file."""
+
         return {
             "hash": DocumentProcessor.get_file_hash(file_path),
             "last_modified": os.path.getmtime(file_path),
@@ -33,71 +39,104 @@ class DocumentProcessor:
 
     @staticmethod
     def process_single_document(file_path):
-        """Process a single document into chunks"""
+        """Divide un singolo documento in frammenti."""
+
         documents = []
         metadatas = []
         ids = []
 
-        with open(file_path, "r", encoding="utf-8") as file:
-            chunks = file.read().replace("\n", ".").split("### ")
-            file_metadata = DocumentProcessor.get_document_metadata(file_path)
+        with open(
+            file_path,
+            "r",
+            encoding="utf-8",
+        ) as file:
+            content = file.read()
 
-            for chunk in chunks:
-                if not chunk.isspace() and chunk != "":
-                    documents.append(chunk)
-                    metadatas.append(file_metadata)
-                    ids.append(str(uuid.uuid4()))
+        chunks = content.replace("\n", ".").split("### ")
+
+        file_metadata = (
+            DocumentProcessor.get_document_metadata(file_path)
+        )
+
+        for chunk in chunks:
+            if chunk.strip():
+                documents.append(chunk.strip())
+                metadatas.append(file_metadata.copy())
+                ids.append(str(uuid.uuid4()))
 
         return documents, metadatas, ids
 
     @staticmethod
     def process_documents(db):
-        """Process documents and sync with database"""
+        """Sincronizza i curriculum con il database."""
+
+        if not os.path.exists(Config.DOCUMENTS_DIR):
+            os.makedirs(Config.DOCUMENTS_DIR)
 
         current_files = {
             filename: DocumentProcessor.get_document_metadata(
-                os.path.join(Config.DOCUMENTS_DIR, filename)
+                os.path.join(
+                    Config.DOCUMENTS_DIR,
+                    filename,
+                )
             )
             for filename in os.listdir(Config.DOCUMENTS_DIR)
             if filename.endswith(".txt")
         }
 
-        print("Current files in directory:", current_files)
-
         existing_files = db.get_tracked_files()
 
-        print("Existing files in db:", existing_files)
+        files_to_add = (
+            set(current_files.keys())
+            - set(existing_files.keys())
+        )
 
-        files_to_add = set(current_files.keys()) - set(existing_files.keys())
-        print("Files to add:", files_to_add)
-
-        files_to_remove = set(existing_files.keys()) - set(current_files.keys())
-        print("Files to remove:", files_to_remove)
+        files_to_remove = (
+            set(existing_files.keys())
+            - set(current_files.keys())
+        )
 
         files_to_update = {
             filename
-            for filename in set(current_files.keys()) & set(existing_files.keys())
-            if current_files[filename]["hash"] != existing_files[filename]["hash"]
+            for filename in (
+                set(current_files.keys())
+                & set(existing_files.keys())
+            )
+            if (
+                current_files[filename]["hash"]
+                != existing_files[filename]["hash"]
+            )
         }
 
-        print("Files to update:", files_to_update)
+        print(f"Files to add: {files_to_add}")
+        print(f"Files to update: {files_to_update}")
+        print(f"Files to remove: {files_to_remove}")
 
         for action, files in [
             ("add", files_to_add),
             ("update", files_to_update),
         ]:
             for filename in files:
-                file_path = os.path.join(Config.DOCUMENTS_DIR, filename)
+                file_path = os.path.join(
+                    Config.DOCUMENTS_DIR,
+                    filename,
+                )
 
                 documents, metadatas, ids = (
-                    DocumentProcessor.process_single_document(file_path)
+                    DocumentProcessor.process_single_document(
+                        file_path
+                    )
                 )
 
                 if action == "update":
                     db.remove_document_by_source(filename)
 
                 if documents:
-                    db.add_documents(documents, metadatas, ids)
+                    db.add_documents(
+                        documents,
+                        metadatas,
+                        ids,
+                    )
 
         for filename in files_to_remove:
             db.remove_document_by_source(filename)
