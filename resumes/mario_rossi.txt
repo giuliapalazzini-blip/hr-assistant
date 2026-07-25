@@ -1,0 +1,16 @@
+Nome: Mario Rossi
+
+Profilo:
+Sviluppatore Python junior con esperienza in progetti web e automazione.
+
+Competenze:
+Python, Flask, HTML, CSS, Git, SQL.
+
+Esperienza:
+Ha realizzato piccoli progetti personali e ha lavorato per sei mesi come stagista in una software house.
+
+Formazione:
+Diploma in informatica e corso di specializzazione in sviluppo Python.
+
+Lingue:
+Italiano madrelingua, inglese livello B1.

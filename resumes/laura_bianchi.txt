@@ -1,0 +1,17 @@
+Nome: Laura Bianchi
+
+Profilo:
+Data analyst con esperienza nell’analisi dei dati aziendali e nella creazione di report.
+
+Competenze:
+Python, Excel, Power BI, SQL, pandas e analisi statistica.
+
+Esperienza:
+Ha lavorato per due anni come data analyst presso un’azienda commerciale.
+Si è occupata della preparazione di dashboard e dell’analisi delle vendite.
+
+Formazione:
+Laurea in Economia e corso di specializzazione in Data Analysis.
+
+Lingue:
+Italiano madrelingua, inglese livello B2.
