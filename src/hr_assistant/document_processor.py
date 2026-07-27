@@ -1,132 +1,174 @@
+# document_processor.py
 import os
 import uuid
 import hashlib
-
+from datetime import datetime
+from typing import Tuple, List, Dict, Any
 from config import Config
 from semantic_chunking import SemanticChunking
+from markitdown import MarkItDown
+from zipfile import ZipFile
+import tempfile
+import mimetypes
 
 
 class DocumentProcessor:
+    SUPPORTED_EXTENSIONS = {
+        # Document formats
+        ".txt": "text",
+        ".pdf": "document",
+        ".doc": "document",
+        ".docx": "document",
+        ".ppt": "presentation",
+        ".pptx": "presentation",
+        ".xls": "spreadsheet",
+        ".xlsx": "spreadsheet",
+        # Web formats
+        ".html": "web",
+        ".htm": "web",
+        # Data formats
+        ".csv": "data",
+        ".json": "data",
+        ".xml": "data",
+        # Archive formats
+        ".zip": "archive",
+    }
+
+    def __init__(self):
+        self.md_converter = MarkItDown()
 
     @staticmethod
-    def read_first_lines(file_path, n_lines=100):
-        with open(file_path, "r", encoding="utf-8") as file:
-            return [line.strip() for line, _ in zip(file, range(n_lines))]
+    def read_first_lines(file_path: str, n_lines: int = 100) -> List[str]:
+        """Read first n lines of a text file"""
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                return [line.strip() for line, _ in zip(file, range(n_lines))]
+        except UnicodeDecodeError:
+            return []  # Return empty list for binary files
 
     @staticmethod
-    def get_file_hash(file_path):
+    def get_file_hash(file_path: str) -> str:
         """Calculate MD5 hash of file content"""
         hash_md5 = hashlib.md5()
-
-        with open(file_path, "rb") as file:
-            for chunk in iter(lambda: file.read(4096), b""):
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
-
         return hash_md5.hexdigest()
 
-    @staticmethod
-    def get_document_metadata(file_path):
-        """Get document metadata including hash and last modified time"""
-        return {
-            "hash": DocumentProcessor.get_file_hash(file_path),
+    def get_document_metadata(self, file_path: str) -> Dict[str, Any]:
+        """Get enhanced document metadata including file type and additional metadata"""
+        extension = os.path.splitext(file_path)[1].lower()
+        file_type = self.SUPPORTED_EXTENSIONS.get(extension, "unknown")
+
+        metadata = {
+            "hash": self.get_file_hash(file_path),
             "last_modified": os.path.getmtime(file_path),
             "source": os.path.basename(file_path),
+            "file_type": file_type,
+            "mime_type": mimetypes.guess_type(file_path)[0],
+            "extension": extension,
         }
 
-    @staticmethod
-    def process_single_document(file_path):
-        """Process a single document into chunks"""
+        return metadata
+    #NEW
+    def _process_zip_file(self, file_path: str) -> List[Tuple[str, str]]:
+        """Process contents of ZIP files"""
+        results = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+                for root, _, files in os.walk(temp_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        if (os.path.splitext(file)[1].lower()in self.SUPPORTED_EXTENSIONS):
+                            content = self._convert_to_markdown(file_path)
+                            if content:
+                                results.append((file, content))
+        return results
+    #NEW
+    def _convert_to_markdown(self, file_path: str) -> str:
+        """Convert file to markdown using MarkItDown"""
+        try:
+            result = self.md_converter.convert(file_path)
+            print("Converted to markdown:",result)
+            return result.text_content
+        except Exception as e:
+            print(f"Error converting {file_path}: {str(e)}")
+            return ""
+
+    def process_single_document(
+        self, file_path: str
+    ) -> Tuple[List[str], List[Dict], List[str]]:
+        """Process a single document into chunks with enhanced format support"""
         documents = []
         metadatas = []
         ids = []
+        #NEW
+        extension = os.path.splitext(file_path)[1].lower()
+        file_type = self.SUPPORTED_EXTENSIONS.get(extension)
 
-        with open(file_path, "r", encoding="utf-8") as file:
-            txt = file.read()
+        if not file_type:
+            return [], [], []
 
-            chunks = SemanticChunking.chunk_it(txt)
-
-            file_metadata = DocumentProcessor.get_document_metadata(
-                file_path
-            )
+        content = ""
+        if file_type == "archive":
+            zip_contents = self._process_zip_file(file_path)
+            for filename, zip_content in zip_contents:
+                if zip_content:
+                    content += f"\n\nFile: {filename}\n{zip_content}"
+        else:
+            content = self._convert_to_markdown(file_path)
+            print(content)
+        #END NEW
+        if content:
+            sc = SemanticChunking(Config.AI_API_KEY, 65, 3)
+            chunks = sc.chunk_text(content)
+            file_metadata = self.get_document_metadata(file_path)
 
             for chunk in chunks:
-                if not chunk.isspace() and chunk != "":
+                if not chunk.isspace() and not chunk == "":
                     documents.append(chunk)
                     metadatas.append(file_metadata)
                     ids.append(str(uuid.uuid4()))
 
         return documents, metadatas, ids
 
-    @staticmethod
-    def process_documents(db):
+    def process_documents(self, db) -> Tuple[int, int, int]:
         """Process documents and sync with database"""
-
+        # Get current files in directory
         current_files = {
-            filename: DocumentProcessor.get_document_metadata(
-                os.path.join(
-                    Config.DOCUMENTS_DIR,
-                    filename,
-                )
-            )
-            for filename in os.listdir(Config.DOCUMENTS_DIR)
-            if filename.endswith(".txt")
+            f: self.get_document_metadata(os.path.join(Config.DOCUMENTS_DIR, f))
+            for f in os.listdir(Config.DOCUMENTS_DIR)
+            if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTENSIONS #NEW
         }
 
+        # Get existing files from database
         existing_files = db.get_tracked_files()
 
-        files_to_add = (
-            set(current_files.keys())
-            - set(existing_files.keys())
-        )
-
-        files_to_remove = (
-            set(existing_files.keys())
-            - set(current_files.keys())
-        )
+        # Identify files to add, update, and remove
+        files_to_add = set(current_files.keys()) - set(existing_files.keys())
+        files_to_remove = set(existing_files.keys()) - set(current_files.keys())
 
         files_to_update = {
-            filename
-            for filename in (
-                set(current_files.keys())
-                & set(existing_files.keys())
-            )
-            if (
-                current_files[filename]["hash"]
-                != existing_files[filename]["hash"]
-            )
+            f
+            for f in set(current_files.keys()) & set(existing_files.keys())
+            if current_files[f]["hash"] != existing_files[f]["hash"]
         }
 
-        for action, files in [
-            ("add", files_to_add),
-            ("update", files_to_update),
-        ]:
+        # Process updates
+        for action, files in [("add", files_to_add), ("update", files_to_update)]:
             for filename in files:
-                file_path = os.path.join(
-                    Config.DOCUMENTS_DIR,
-                    filename,
-                )
-
-                documents, metadatas, ids = (
-                    DocumentProcessor.process_single_document(
-                        file_path
-                    )
-                )
+                file_path = os.path.join(Config.DOCUMENTS_DIR, filename)
+                documents, metadatas, ids = self.process_single_document(file_path)
 
                 if action == "update":
                     db.remove_document_by_source(filename)
 
                 if documents:
-                    db.add_documents(
-                        documents,
-                        metadatas,
-                        ids,
-                    )
+                    db.add_documents(documents, metadatas, ids)
 
+        # Remove deleted files from database
         for filename in files_to_remove:
             db.remove_document_by_source(filename)
 
-        return (
-            len(files_to_add),
-            len(files_to_update),
-            len(files_to_remove),
-        )
+        return len(files_to_add), len(files_to_update), len(files_to_remove)

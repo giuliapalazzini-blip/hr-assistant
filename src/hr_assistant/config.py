@@ -15,7 +15,7 @@ class Config:
     MODEL_NAME = "text-embedding-3-small"
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-    # Completamento
+    # Completamento OpenAI
     LLM_MODEL = "gpt-4o"
     LLM_MODEL_LOW = "gpt-4o-mini"
 

@@ -1,60 +1,37 @@
 import os
-
 import chainlit as cl
-
 from document_processor import DocumentProcessor
 from database import Database
 from config import Config
 from utils import LLMHelper
 
-
 db = Database()
 
-
-# Sincronizza i documenti all'avvio
-added, updated, removed = DocumentProcessor.process_documents(db)
-
-print(
-    f"Document sync complete: "
-    f"{added} added, "
-    f"{updated} updated, "
-    f"{removed} removed"
-)
+# Process documents
+dp = DocumentProcessor()
+added, updated, removed = dp.process_documents(db)
+print(f"Document sync complete: {added} added, {updated} updated, {removed} removed")
 
 
 @cl.action_callback("db_stats")
-async def on_db_stats(action: cl.Action):
+async def on_action(action: cl.Action):
     print(action.payload)
-
     db_info = db.get_stats()
     print(db_info)
-
     response = await LLMHelper.get_db_stats(db_info)
-
-    await cl.Message(
-        content=response
-    ).send()
+    await cl.Message(response).send()
 
 
 @cl.action_callback("db_reindex")
-async def on_db_reindex(action: cl.Action):
-    added, updated, removed = DocumentProcessor.process_documents(db)
-
-    message = (
-        "DB reindicizzato con successo. "
-        f"Document sync complete: "
-        f"{added} added, "
-        f"{updated} updated, "
-        f"{removed} removed"
-    )
-
-    await cl.Message(
-        content=message
-    ).send()
+async def on_action(action: cl.Action):
+    added, updated, removed = dp.process_documents(db)
+    message = f"DB reindicizzato con successo. Document sync complete: {added} added, {updated} updated, {removed} removed"
+    await cl.Message(message).send()
 
 
 @cl.on_chat_start
 async def start():
+
     actions = [
         cl.Action(
             name="db_stats",
@@ -70,10 +47,7 @@ async def start():
         ),
     ]
 
-    await cl.Message(
-        content="Informazioni del sistema:",
-        actions=actions,
-    ).send()
+    await cl.Message(content="Informazioni del sistema:", actions=actions).send()
 
     cl.user_session.set(
         "messages",
@@ -81,12 +55,9 @@ async def start():
             {
                 "role": "system",
                 "content": """
-Sei un assistente specializzato nel mondo HR,
-rispondi in modo professionale, sintetico e pragmatico.
-
-Il tuo ruolo è individuare il candidato ideale
-rispetto alle richieste dell'utente.
-""",
+                    Sei un assistente specializzato nel mondo HR, rispondi in modo professionale, sintetico e pragmatico.
+                    Il tuo ruolo è individuare il candidato ideale rispetto alle richieste dell'utente.
+                """,
             }
         ],
     )
@@ -95,47 +66,27 @@ rispetto alle richieste dell'utente.
 @cl.on_message
 async def handle_message(message: cl.Message):
     user_question = message.content
-
     results = db.query(user_question)
 
     filename = results["metadatas"][0][0]["source"]
-
     context_lines = DocumentProcessor.read_first_lines(
-        os.path.join(
-            Config.DOCUMENTS_DIR,
-            filename,
-        ),
-        200,
+        os.path.join(Config.DOCUMENTS_DIR, filename), 200
     )
 
-    context = (
-        "CONTESTO: "
-        f"nome file {results['metadatas'][0][0]['source']} "
-        "ecco il paragrafo più significativo: "
-        f"{results['documents'][0][0]}"
-    )
+    context = f"CONTESTO: nome file {results['metadatas'][0][0]['source']} ecco il paragrafo piu' significativo: {results['documents'][0][0]}"
 
-    candidate_name = await LLMHelper.get_candidate_name(
-        context_lines
-    )
+    candidate_name = await LLMHelper.get_candidate_name(context_lines)
 
-    prompt = LLMHelper.create_prompt(
-        context,
-        user_question,
-        candidate_name,
-    )
+    prompt = LLMHelper.create_prompt(context, user_question, candidate_name)
 
-    messages = cl.user_session.get(
-        "messages",
-        [],
-    )
+    messages = cl.user_session.get("messages", [])
+    messages.append({"role": "user", "content": prompt})
 
-    messages.append(
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    )
+    # print("*" * 80)
+    # print("*" * 80)
+    # print("prompt", prompt)
+    # print("*" * 80)
+    # print("*" * 80)
 
     response_message = cl.Message(content="")
     await response_message.send()
@@ -145,43 +96,20 @@ async def handle_message(message: cl.Message):
 
         for chunk in stream:
             await response_message.stream_token(
-                str(
-                    chunk.choices[0].delta.content
-                    or ""
-                )
+                str(chunk.choices[0].delta.content or "")
             )
 
-        messages.append(
-            {
-                "role": "assistant",
-                "content": response_message.content,
-            }
-        )
-
+        messages.append({"role": "assistant", "content": response_message.content})
         await response_message.update()
 
     except Exception as e:
-        error_message = (
-            f"An error occurred: {str(e)}"
-        )
-
-        await cl.Message(
-            content=error_message
-        ).send()
-
+        error_message = f"An error occurred: {str(e)}"
+        await cl.Message(content=error_message).send()
         print(error_message)
 
-    cl.user_session.set(
-        "messages",
-        messages,
-    )
+    cl.user_session.set("messages", messages)
 
 
 # @cl.on_chat_end
 # def end():
-#     cl.Message(
-#         content=(
-#             "Grazie per aver utilizzato il nostro assistente. "
-#             "Buona giornata!"
-#         )
-#     ).send()
+#     cl.Message(content="Grazie per aver utilizzato il nostro assistente. Buona giornata!").send()
