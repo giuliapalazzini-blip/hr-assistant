@@ -70,7 +70,6 @@ class DocumentProcessor:
         }
 
         return metadata
-    #NEW
     def _process_zip_file(self, file_path: str) -> List[Tuple[str, str]]:
         """Process contents of ZIP files"""
         results = []
@@ -85,7 +84,6 @@ class DocumentProcessor:
                             if content:
                                 results.append((file, content))
         return results
-    #NEW
     def _convert_to_markdown(self, file_path: str) -> str:
         """Convert file to markdown using MarkItDown"""
         try:

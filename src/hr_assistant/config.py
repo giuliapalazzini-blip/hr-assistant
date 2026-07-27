@@ -11,11 +11,11 @@ class Config:
     COLLECTION_NAME = "CVs"
     PERSISTENT_DIR = "data/chromadb"
 
-    # Embedding
+    # Embedding OpenAI
     MODEL_NAME = "text-embedding-3-small"
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-    # Completamento OpenAI
+    # Modelli di completamento OpenAI
     LLM_MODEL = "gpt-4o"
     LLM_MODEL_LOW = "gpt-4o-mini"
 
@@ -25,5 +25,7 @@ class Config:
 
 if not Config.OPENAI_KEY:
     raise ValueError(
-        "La variabile OPENAI_API_KEY non è stata trovata nel file .env"
+        "La variabile OPENAI_API_KEY non è stata trovata. "
+        "Controlla che il file .env esista nella cartella principale "
+        "del progetto e contenga OPENAI_API_KEY=la_tua_chiave."
     )

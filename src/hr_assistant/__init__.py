@@ -1,37 +1,84 @@
 import os
+import shutil
+
 import chainlit as cl
+
 from document_processor import DocumentProcessor
 from database import Database
 from config import Config
 from utils import LLMHelper
+
 
 db = Database()
 
 # Process documents
 dp = DocumentProcessor()
 added, updated, removed = dp.process_documents(db)
-print(f"Document sync complete: {added} added, {updated} updated, {removed} removed")
+
+print(
+    f"Document sync complete: "
+    f"{added} added, {updated} updated, {removed} removed"
+)
+
+
+@cl.set_starters
+async def set_starters():
+    return [
+        cl.Starter(
+            label="Ricerca candidato",
+            message="Cercami un candidato che abbia le competenze di un saldatore",
+            icon="/public/idea.svg",
+        ),
+    ]
 
 
 @cl.action_callback("db_stats")
-async def on_action(action: cl.Action):
-    print(action.payload)
+async def on_db_stats(action: cl.Action):
+    actions = [
+        cl.Action(
+            name="db_stats",
+            icon="mouse-pointer-click",
+            payload={"value": "db_stats"},
+            label="Ricalcola Statistiche Database",
+        ),
+    ]
+
     db_info = db.get_stats()
-    print(db_info)
     response = await LLMHelper.get_db_stats(db_info)
-    await cl.Message(response).send()
+
+    await cl.Message(
+        content=response,
+        actions=actions
+    ).send()
 
 
 @cl.action_callback("db_reindex")
-async def on_action(action: cl.Action):
+async def on_db_reindex(action: cl.Action):
     added, updated, removed = dp.process_documents(db)
-    message = f"DB reindicizzato con successo. Document sync complete: {added} added, {updated} updated, {removed} removed"
-    await cl.Message(message).send()
+
+    message = (
+        "DB reindicizzato con successo. "
+        f"Document sync complete: {added} added, "
+        f"{updated} updated, {removed} removed"
+    )
+
+    await cl.Message(content=message).send()
+
+
+@cl.action_callback("db_remove")
+async def on_db_remove(action: cl.Action):
+    db.delete_collection()
+
+    message = (
+        "Il database è stato completamente rimosso. "
+        "È necessario lanciare il reindex."
+    )
+
+    await cl.Message(content=message).send()
 
 
 @cl.on_chat_start
 async def start():
-
     actions = [
         cl.Action(
             name="db_stats",
@@ -45,9 +92,18 @@ async def start():
             payload={"value": "db_reindex"},
             label="Reindex Database",
         ),
+        cl.Action(
+            name="db_remove",
+            icon="mouse-pointer-click",
+            payload={"value": "db_remove"},
+            label="Svuota completamente il Database",
+        ),
     ]
 
-    await cl.Message(content="Informazioni del sistema:", actions=actions).send()
+    await cl.Message(
+        content="Informazioni del sistema:",
+        actions=actions
+    ).send()
 
     cl.user_session.set(
         "messages",
@@ -55,38 +111,169 @@ async def start():
             {
                 "role": "system",
                 "content": """
-                    Sei un assistente specializzato nel mondo HR, rispondi in modo professionale, sintetico e pragmatico.
-                    Il tuo ruolo è individuare il candidato ideale rispetto alle richieste dell'utente.
+                    Sei un assistente specializzato nel mondo HR,
+                    rispondi in modo professionale, sintetico e pragmatico.
+                    Il tuo ruolo è individuare il candidato ideale
+                    rispetto alle richieste dell'utente.
                 """,
             }
         ],
     )
 
 
-@cl.on_message
-async def handle_message(message: cl.Message):
-    user_question = message.content
-    results = db.query(user_question)
+async def _process_and_index_file(
+    file_path: str,
+    file_name: str
+) -> str:
+    """
+    Elabora e indicizza il documento,
+    restituendo un messaggio di esito.
+    """
 
-    filename = results["metadatas"][0][0]["source"]
-    context_lines = DocumentProcessor.read_first_lines(
-        os.path.join(Config.DOCUMENTS_DIR, filename), 200
+    documents, metadatas, ids = dp.process_single_document(file_path)
+
+    if documents:
+        db.add_documents(documents, metadatas, ids)
+
+        return (
+            f"File '{file_name}' caricato "
+            "e indicizzato con successo."
+        )
+
+    return f"Errore nel processare il file '{file_name}'."
+
+
+async def _file_upload(file) -> str:
+    file_name = file.name
+    src_file_path = file.path
+
+    dst_file_path = os.path.join(
+        Config.DOCUMENTS_DIR,
+        file_name
     )
 
-    context = f"CONTESTO: nome file {results['metadatas'][0][0]['source']} ecco il paragrafo piu' significativo: {results['documents'][0][0]}"
+    os.makedirs(
+        Config.DOCUMENTS_DIR,
+        exist_ok=True
+    )
 
-    candidate_name = await LLMHelper.get_candidate_name(context_lines)
+    shutil.move(
+        src_file_path,
+        dst_file_path
+    )
 
-    prompt = LLMHelper.create_prompt(context, user_question, candidate_name)
+    return await _process_and_index_file(
+        dst_file_path,
+        file_name
+    )
 
-    messages = cl.user_session.get("messages", [])
-    messages.append({"role": "user", "content": prompt})
 
-    # print("*" * 80)
-    # print("*" * 80)
-    # print("prompt", prompt)
-    # print("*" * 80)
-    # print("*" * 80)
+@cl.on_message
+async def handle_message(message: cl.Message):
+
+    # Gestione dell'upload dei file
+    if message.elements:
+        print("message.elements", message.elements)
+
+        await cl.Message(
+            content="Caricamento e indicizzazione documenti"
+        ).send()
+
+        files = [
+            file
+            for file in message.elements
+            if file.name.lower().endswith(
+                tuple(DocumentProcessor.SUPPORTED_EXTENSIONS)
+            )
+        ]
+
+        if files:
+            results_upload = [
+                await _file_upload(file)
+                for file in files
+            ]
+        else:
+            results_upload = [
+                "Nessun file supportato caricato"
+            ]
+
+        result_message = "\n".join(results_upload)
+
+        await cl.Message(
+            content=result_message
+        ).send()
+
+        await cl.Message(
+            content=f"Caricati {len(files)} file"
+        ).send()
+
+        # Se il messaggio non contiene una domanda,
+        # termina dopo il caricamento dei file
+        if not message.content.strip():
+            return
+
+    # Interrogazione del sistema
+    user_question = message.content.strip()
+
+    if not user_question:
+        return
+
+    results = db.query(user_question)
+
+    print("results", results)
+
+    try:
+        filename = results["metadatas"][0][0]["source"]
+        significant_paragraph = results["documents"][0][0]
+
+    except Exception as error:
+        error_message = (
+            "Non sono riuscito a trovare un curriculum "
+            f"corrispondente alla richiesta. Dettaglio: {error}"
+        )
+
+        await cl.Message(
+            content=error_message
+        ).send()
+
+        print(error_message)
+        return
+
+    context_lines = DocumentProcessor.read_first_lines(
+        os.path.join(
+            Config.DOCUMENTS_DIR,
+            filename
+        ),
+        200
+    )
+
+    context = (
+        f"CONTESTO: nome file {filename}. "
+        "Ecco il paragrafo più significativo: "
+        f"{significant_paragraph}"
+    )
+
+    candidate_name = await LLMHelper.get_candidate_name(
+        context_lines
+    )
+
+    prompt = LLMHelper.create_prompt(
+        context,
+        user_question,
+        candidate_name
+    )
+
+    messages = cl.user_session.get(
+        "messages",
+        []
+    )
+
+    messages.append(
+        {
+            "role": "user",
+            "content": prompt
+        }
+    )
 
     response_message = cl.Message(content="")
     await response_message.send()
@@ -95,21 +282,43 @@ async def handle_message(message: cl.Message):
         stream = LLMHelper.chat(messages)
 
         for chunk in stream:
-            await response_message.stream_token(
-                str(chunk.choices[0].delta.content or "")
+            token = str(
+                chunk.choices[0].delta.content or ""
             )
 
-        messages.append({"role": "assistant", "content": response_message.content})
+            await response_message.stream_token(token)
+
+        messages.append(
+            {
+                "role": "assistant",
+                "content": response_message.content
+            }
+        )
+
         await response_message.update()
 
-    except Exception as e:
-        error_message = f"An error occurred: {str(e)}"
-        await cl.Message(content=error_message).send()
+    except Exception as error:
+        error_message = (
+            f"Si è verificato un errore: {error}"
+        )
+
+        await cl.Message(
+            content=error_message
+        ).send()
+
         print(error_message)
 
-    cl.user_session.set("messages", messages)
+    cl.user_session.set(
+        "messages",
+        messages
+    )
 
 
 # @cl.on_chat_end
-# def end():
-#     cl.Message(content="Grazie per aver utilizzato il nostro assistente. Buona giornata!").send()
+# async def end():
+#     await cl.Message(
+#         content=(
+#             "Grazie per aver utilizzato "
+#             "il nostro assistente. Buona giornata!"
+#         )
+#     ).send()
