@@ -11,11 +11,11 @@ class Config:
     COLLECTION_NAME = "CVs"
     PERSISTENT_DIR = "data/chromadb"
 
-    # Modello per gli embedding
+    # Embedding
     MODEL_NAME = "text-embedding-3-small"
     OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-    # Modelli OpenAI
+    # Completamento
     LLM_MODEL = "gpt-4o"
     LLM_MODEL_LOW = "gpt-4o-mini"
 

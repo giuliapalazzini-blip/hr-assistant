@@ -1,36 +1,32 @@
-import hashlib
 import os
 import uuid
+import hashlib
 
 from config import Config
+from semantic_chunking import SemanticChunking
+
+
 class DocumentProcessor:
+
     @staticmethod
     def read_first_lines(file_path, n_lines=100):
         with open(file_path, "r", encoding="utf-8") as file:
-            return [
-                line.strip()
-                for line, _ in zip(file, range(n_lines))
-            ]
+            return [line.strip() for line, _ in zip(file, range(n_lines))]
 
     @staticmethod
     def get_file_hash(file_path):
-        """Calcola l'hash MD5 del contenuto del file."""
-
+        """Calculate MD5 hash of file content"""
         hash_md5 = hashlib.md5()
 
         with open(file_path, "rb") as file:
-            for chunk in iter(
-                lambda: file.read(4096),
-                b"",
-            ):
+            for chunk in iter(lambda: file.read(4096), b""):
                 hash_md5.update(chunk)
 
         return hash_md5.hexdigest()
 
     @staticmethod
     def get_document_metadata(file_path):
-        """Restituisce hash, ultima modifica e nome del file."""
-
+        """Get document metadata including hash and last modified time"""
         return {
             "hash": DocumentProcessor.get_file_hash(file_path),
             "last_modified": os.path.getmtime(file_path),
@@ -39,39 +35,31 @@ class DocumentProcessor:
 
     @staticmethod
     def process_single_document(file_path):
-        """Divide un singolo documento in frammenti."""
-
+        """Process a single document into chunks"""
         documents = []
         metadatas = []
         ids = []
 
-        with open(
-            file_path,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            content = file.read()
+        with open(file_path, "r", encoding="utf-8") as file:
+            txt = file.read()
 
-        chunks = content.replace("\n", ".").split("### ")
+            chunks = SemanticChunking.chunk_it(txt)
 
-        file_metadata = (
-            DocumentProcessor.get_document_metadata(file_path)
-        )
+            file_metadata = DocumentProcessor.get_document_metadata(
+                file_path
+            )
 
-        for chunk in chunks:
-            if chunk.strip():
-                documents.append(chunk.strip())
-                metadatas.append(file_metadata.copy())
-                ids.append(str(uuid.uuid4()))
+            for chunk in chunks:
+                if not chunk.isspace() and chunk != "":
+                    documents.append(chunk)
+                    metadatas.append(file_metadata)
+                    ids.append(str(uuid.uuid4()))
 
         return documents, metadatas, ids
 
     @staticmethod
     def process_documents(db):
-        """Sincronizza i curriculum con il database."""
-
-        if not os.path.exists(Config.DOCUMENTS_DIR):
-            os.makedirs(Config.DOCUMENTS_DIR)
+        """Process documents and sync with database"""
 
         current_files = {
             filename: DocumentProcessor.get_document_metadata(
@@ -107,10 +95,6 @@ class DocumentProcessor:
                 != existing_files[filename]["hash"]
             )
         }
-
-        print(f"Files to add: {files_to_add}")
-        print(f"Files to update: {files_to_update}")
-        print(f"Files to remove: {files_to_remove}")
 
         for action, files in [
             ("add", files_to_add),
