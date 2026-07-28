@@ -20,7 +20,6 @@ print(
     f"{added} added, {updated} updated, {removed} removed"
 )
 
-
 @cl.set_starters
 async def set_starters():
     return [
@@ -30,7 +29,6 @@ async def set_starters():
             icon="/public/idea.svg",
         ),
     ]
-
 
 @cl.action_callback("db_stats")
 async def on_db_stats(action: cl.Action):
@@ -47,13 +45,18 @@ async def on_db_stats(action: cl.Action):
     response = await LLMHelper.get_db_stats(db_info)
 
     await cl.Message(
+        author="system_assistant",
         content=response,
         actions=actions
     ).send()
 
-
 @cl.action_callback("db_reindex")
 async def on_db_reindex(action: cl.Action):
+    await cl.Message(
+        author="system_assistant",
+        content="Reindicizzazione in corso..."
+    ).send()
+
     added, updated, removed = dp.process_documents(db)
 
     message = (
@@ -62,8 +65,10 @@ async def on_db_reindex(action: cl.Action):
         f"{updated} updated, {removed} removed"
     )
 
-    await cl.Message(content=message).send()
-
+    await cl.Message(
+        author="system_assistant",
+        content=message
+    ).send()
 
 @cl.action_callback("db_remove")
 async def on_db_remove(action: cl.Action):
@@ -74,8 +79,10 @@ async def on_db_remove(action: cl.Action):
         "È necessario lanciare il reindex."
     )
 
-    await cl.Message(content=message).send()
-
+    await cl.Message(
+        author="system_assistant",
+        content=message
+    ).send()
 
 @cl.on_chat_start
 async def start():
@@ -101,6 +108,7 @@ async def start():
     ]
 
     await cl.Message(
+        author="system_assistant",
         content="Informazioni del sistema:",
         actions=actions
     ).send()
@@ -119,8 +127,7 @@ async def start():
             }
         ],
     )
-
-
+    
 async def _process_and_index_file(
     file_path: str,
     file_name: str
@@ -141,7 +148,6 @@ async def _process_and_index_file(
         )
 
     return f"Errore nel processare il file '{file_name}'."
-
 
 async def _file_upload(file) -> str:
     file_name = file.name
@@ -167,7 +173,6 @@ async def _file_upload(file) -> str:
         file_name
     )
 
-
 @cl.on_message
 async def handle_message(message: cl.Message):
 
@@ -176,6 +181,7 @@ async def handle_message(message: cl.Message):
         print("message.elements", message.elements)
 
         await cl.Message(
+            author="system_assistant",
             content="Caricamento e indicizzazione documenti"
         ).send()
 
@@ -200,15 +206,15 @@ async def handle_message(message: cl.Message):
         result_message = "\n".join(results_upload)
 
         await cl.Message(
+            author="system_assistant",
             content=result_message
         ).send()
 
         await cl.Message(
+            author="system_assistant",
             content=f"Caricati {len(files)} file"
         ).send()
 
-        # Se il messaggio non contiene una domanda,
-        # termina dopo il caricamento dei file
         if not message.content.strip():
             return
 
@@ -233,6 +239,7 @@ async def handle_message(message: cl.Message):
         )
 
         await cl.Message(
+            author="hr_assistant",
             content=error_message
         ).send()
 
@@ -275,7 +282,11 @@ async def handle_message(message: cl.Message):
         }
     )
 
-    response_message = cl.Message(content="")
+    response_message = cl.Message(
+        author="hr_assistant",
+        content=""
+    )
+
     await response_message.send()
 
     try:
@@ -303,6 +314,7 @@ async def handle_message(message: cl.Message):
         )
 
         await cl.Message(
+            author="hr_assistant",
             content=error_message
         ).send()
 
@@ -317,6 +329,7 @@ async def handle_message(message: cl.Message):
 # @cl.on_chat_end
 # async def end():
 #     await cl.Message(
+#         author="hr_assistant",
 #         content=(
 #             "Grazie per aver utilizzato "
 #             "il nostro assistente. Buona giornata!"

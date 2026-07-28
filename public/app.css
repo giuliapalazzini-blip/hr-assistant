@@ -1,0 +1,43 @@
+/* .step .bg-accent .message-content {
+    color: rgb(238, 244, 248);
+}
+
+#chat-input.empty:before {
+    color: white !important;
+} */
+
+/* .bg-primary {
+    background-color: #000000 !important;
+} */
+
+.empty\:before\:text-muted-foreground:empty:before {
+    color: rgb(128, 30, 0) !important;
+}
+
+
+
+/* Inserisce l'immagine del logo nell'header della pagina */
+header [role="button"], 
+header a[href="/"] {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+header [role="button"]::before, 
+header a[href="/"]::before {
+    content: "";
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    background-image: url('/public/logo_light.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+/* Gestione del logo per il tema scuro */
+.dark header [role="button"]::before,
+.dark header a[href="/"]::before {
+    background-image: url('/public/logo_dark.png');
+}
